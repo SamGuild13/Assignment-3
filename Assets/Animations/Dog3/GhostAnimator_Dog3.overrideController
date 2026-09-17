@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!221 &22100000
+AnimatorOverrideController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: GhostAnimator_Dog3
+  m_Controller: {fileID: 9100000, guid: 4d6165b92a9d0794da90e0ee47e8f1ee, type: 2}
+  m_Clips:
+  - m_OriginalClip: {fileID: 7400000, guid: 059a8fceb352170478ce3c887bd97b96, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 059a8fceb352170478ce3c887bd97b96, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 2a68e34369d1a484785f5e69f7e3e0a1, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 2a68e34369d1a484785f5e69f7e3e0a1, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: a478abd5a7550254bad986f98cdada4d, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: a478abd5a7550254bad986f98cdada4d, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: e643ed7551d035f48b4a7b8d461cfc9a, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: e643ed7551d035f48b4a7b8d461cfc9a, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 4a59bfa5ff131444fb675baef3e6cf92, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 4a59bfa5ff131444fb675baef3e6cf92, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: cc0bcf5d82ee1314f851911279a3a3e7, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: cc0bcf5d82ee1314f851911279a3a3e7, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 29b687d9ef3f22e4f829010abeb21366, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: cd44d9cf44419be46932306f3b1b209e, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 122c287824ce9c3449cf5f39182e2f98, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 1b4b639423dbb8946b84a19789be1635, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: bc37c1e3e86acc04d9aaf22c3754429e, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 05534def0a394ed42910c22e05d40e79, type: 2}
+  - m_OriginalClip: {fileID: 7400000, guid: 8465ea84d94fb44478176f0294bdea50, type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 89bbb55846aa05b4c8081ff8fc80536b, type: 2}
