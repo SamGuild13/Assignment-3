@@ -73,6 +73,12 @@ public class LevelGenerator : MonoBehaviour
         OUTSIDE_CORNER, OUTSIDE_WALL, INSIDE_CORNER, INSIDE_WALL, T_JUNCTION, GHOST_DOOR
     };
 
+    [Header("Tunnel (not encoded in levelMap - added manually here)")]
+    [Tooltip("The row (in the FULL mirrored map, 0 = top) where the left/right tunnel opening sits. Check your manually-built level's Y position divided by cellSize to find this.")]
+    public int tunnelRow = 5;
+
+    private HashSet<Vector2Int> tunnelCells = new HashSet<Vector2Int>();
+
     private int[,] fullMap;
     private int fullRows, fullCols;
     private Transform levelParent;
@@ -93,8 +99,26 @@ public class LevelGenerator : MonoBehaviour
         }
 
         BuildFullMap();
+        PunchTunnelOpening();
         GenerateLevel();
         FitCamera();
+    }
+
+    /// <summary>
+    /// The tunnel isn't part of levelMap - it's a deliberate opening you cut
+    /// into the boundary manually. This reproduces that: clears the wall at
+    /// the far left and far right edge of tunnelRow, replacing it with plain
+    /// floor (no wall, no pellet).
+    /// </summary>
+    private void PunchTunnelOpening()
+    {
+        if (tunnelRow < 0 || tunnelRow >= fullRows) return;
+
+        fullMap[tunnelRow, 0] = PELLET;
+        fullMap[tunnelRow, fullCols - 1] = PELLET;
+
+        tunnelCells.Add(new Vector2Int(tunnelRow, 0));
+        tunnelCells.Add(new Vector2Int(tunnelRow, fullCols - 1));
     }
 
     /// <summary>
@@ -172,6 +196,11 @@ public class LevelGenerator : MonoBehaviour
                         rotationZ = GetStraightWallRotation(r, c);
                         break;
                     case PELLET:
+                        if (tunnelCells.Contains(new Vector2Int(r, c)))
+                        {
+                            // Tunnel opening: floor only (already spawned above), no pellet.
+                            continue;
+                        }
                         prefab = pelletPrefab;
                         break;
                     case POWER_PELLET:
@@ -258,12 +287,33 @@ public class LevelGenerator : MonoBehaviour
         bool left = IsWall(r, c - 1);
         bool right = IsWall(r, c + 1);
 
+        // Prefer an exact 2-side match first (the normal case for most corners).
         if (right && down) return 0f;
         if (up && right) return 90f;
         if (left && up) return 180f;
         if (down && left) return 270f;
 
-        Debug.LogWarning($"Corner at ({r},{c}) has an unexpected neighbor pattern " +
+        // Fallback for tapered/end-cap positions - e.g. a mirrored seam that
+        // leaves only ONE real wall neighbor instead of two. Score each
+        // candidate rotation by how many of its expected sides are present,
+        // and pick whichever fits best rather than defaulting blindly.
+        int score0 = (right ? 1 : 0) + (down ? 1 : 0);   // 0 deg wants right+down
+        int score90 = (up ? 1 : 0) + (right ? 1 : 0);    // 90 deg wants up+right
+        int score180 = (left ? 1 : 0) + (up ? 1 : 0);    // 180 deg wants left+up
+        int score270 = (down ? 1 : 0) + (left ? 1 : 0);  // 270 deg wants down+left
+
+        int best = Mathf.Max(Mathf.Max(score0, score90), Mathf.Max(score180, score270));
+
+        if (best > 0)
+        {
+            if (score0 == best) return 0f;
+            if (score90 == best) return 90f;
+            if (score180 == best) return 180f;
+            return 270f;
+        }
+
+        // Genuinely no adjacent walls at all - keep a warning for this real edge case.
+        Debug.LogWarning($"Corner at ({r},{c}) has no adjacent walls at all " +
                           $"(U:{up} D:{down} L:{left} R:{right}). Defaulting to 0 degrees.");
         return 0f;
     }
@@ -280,13 +330,30 @@ public class LevelGenerator : MonoBehaviour
         bool left = IsWall(r, c - 1);
         bool right = IsWall(r, c + 1);
 
-        // Find the missing direction (the closed side of the T).
+        // Prefer an exact match first (all 3 expected sides present).
         if (!up && left && right && down) return 0f;
         if (!left && up && down && right) return 90f;
         if (!down && left && right && up) return 180f;
         if (!right && up && down && left) return 270f;
 
-        Debug.LogWarning($"T-junction at ({r},{c}) has an unexpected neighbor pattern " +
+        // Fallback: score each rotation by how many of its 3 expected sides
+        // are actually present, and pick the best fit instead of defaulting.
+        int score0 = (left ? 1 : 0) + (right ? 1 : 0) + (down ? 1 : 0);
+        int score90 = (up ? 1 : 0) + (down ? 1 : 0) + (right ? 1 : 0);
+        int score180 = (left ? 1 : 0) + (right ? 1 : 0) + (up ? 1 : 0);
+        int score270 = (up ? 1 : 0) + (down ? 1 : 0) + (left ? 1 : 0);
+
+        int best = Mathf.Max(Mathf.Max(score0, score90), Mathf.Max(score180, score270));
+
+        if (best > 0)
+        {
+            if (score0 == best) return 0f;
+            if (score90 == best) return 90f;
+            if (score180 == best) return 180f;
+            return 270f;
+        }
+
+        Debug.LogWarning($"T-junction at ({r},{c}) has no adjacent walls at all " +
                           $"(U:{up} D:{down} L:{left} R:{right}). Defaulting to 0 degrees.");
         return 0f;
     }

@@ -4532,6 +4532,7 @@ MonoBehaviour:
   cellSize: 1
   cameraPadding: 1
   spawnFloorTiles: 1
+  tunnelRow: 14
 --- !u!4 &61755029
 Transform:
   m_ObjectHideFlags: 0
