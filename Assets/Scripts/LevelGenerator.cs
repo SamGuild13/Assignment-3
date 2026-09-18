@@ -114,11 +114,22 @@ public class LevelGenerator : MonoBehaviour
     {
         if (tunnelRow < 0 || tunnelRow >= fullRows) return;
 
-        fullMap[tunnelRow, 0] = PELLET;
-        fullMap[tunnelRow, fullCols - 1] = PELLET;
+        // Walk inward from the left edge, converting every contiguous EMPTY
+        // cell to floor-only, until hitting the first real wall.
+        for (int c = 0; c < fullCols; c++)
+        {
+            if (fullMap[tunnelRow, c] != EMPTY) break;
+            fullMap[tunnelRow, c] = PELLET;
+            tunnelCells.Add(new Vector2Int(tunnelRow, c));
+        }
 
-        tunnelCells.Add(new Vector2Int(tunnelRow, 0));
-        tunnelCells.Add(new Vector2Int(tunnelRow, fullCols - 1));
+        // Same from the right edge inward.
+        for (int c = fullCols - 1; c >= 0; c--)
+        {
+            if (fullMap[tunnelRow, c] != EMPTY) break;
+            fullMap[tunnelRow, c] = PELLET;
+            tunnelCells.Add(new Vector2Int(tunnelRow, c));
+        }
     }
 
     /// <summary>
@@ -288,28 +299,30 @@ public class LevelGenerator : MonoBehaviour
         bool right = IsWall(r, c + 1);
 
         // Prefer an exact 2-side match first (the normal case for most corners).
-        if (right && down) return 0f;
-        if (up && right) return 90f;
-        if (left && up) return 180f;
-        if (down && left) return 270f;
+        // NOTE: rotations below are offset 180 degrees from the "textbook" mapping
+        // to match this project's actual corner artwork orientation.
+        if (right && down) return 180f;
+        if (up && right) return 270f;
+        if (left && up) return 0f;
+        if (down && left) return 90f;
 
         // Fallback for tapered/end-cap positions - e.g. a mirrored seam that
         // leaves only ONE real wall neighbor instead of two. Score each
         // candidate rotation by how many of its expected sides are present,
         // and pick whichever fits best rather than defaulting blindly.
-        int score0 = (right ? 1 : 0) + (down ? 1 : 0);   // 0 deg wants right+down
-        int score90 = (up ? 1 : 0) + (right ? 1 : 0);    // 90 deg wants up+right
-        int score180 = (left ? 1 : 0) + (up ? 1 : 0);    // 180 deg wants left+up
-        int score270 = (down ? 1 : 0) + (left ? 1 : 0);  // 270 deg wants down+left
+        int score180 = (right ? 1 : 0) + (down ? 1 : 0);   // 180 deg wants right+down
+        int score270 = (up ? 1 : 0) + (right ? 1 : 0);     // 270 deg wants up+right
+        int score0 = (left ? 1 : 0) + (up ? 1 : 0);        // 0 deg wants left+up
+        int score90 = (down ? 1 : 0) + (left ? 1 : 0);     // 90 deg wants down+left
 
         int best = Mathf.Max(Mathf.Max(score0, score90), Mathf.Max(score180, score270));
 
         if (best > 0)
         {
-            if (score0 == best) return 0f;
-            if (score90 == best) return 90f;
             if (score180 == best) return 180f;
-            return 270f;
+            if (score270 == best) return 270f;
+            if (score0 == best) return 0f;
+            return 90f;
         }
 
         // Genuinely no adjacent walls at all - keep a warning for this real edge case.
