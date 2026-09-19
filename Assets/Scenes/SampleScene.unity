@@ -106484,7 +106484,7 @@ GameObject:
   - component: {fileID: 1690879966}
   - component: {fileID: 1690879965}
   m_Layer: 0
-  m_Name: power_pellet_0
+  m_Name: power_pellet_prefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
