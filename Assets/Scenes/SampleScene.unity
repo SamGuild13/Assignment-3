@@ -4533,6 +4533,8 @@ MonoBehaviour:
   cameraPadding: 1
   spawnFloorTiles: 1
   tunnelRow: 14
+  insideCornerRotationOffset: 0
+  insideWallRotationOffset: 0
 --- !u!4 &61755029
 Transform:
   m_ObjectHideFlags: 0

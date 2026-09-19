@@ -77,7 +77,13 @@ public class LevelGenerator : MonoBehaviour
     [Tooltip("The row (in the FULL mirrored map, 0 = top) where the left/right tunnel opening sits. Check your manually-built level's Y position divided by cellSize to find this.")]
     public int tunnelRow = 5;
 
-    private HashSet<Vector2Int> tunnelCells = new HashSet<Vector2Int>();
+    [Header("Rotation fine-tuning")]
+    [Tooltip("Extra rotation (multiple of 90) applied only to inside corners, in case their artwork's default orientation differs from outside corners. Try 0, 90, 180, 270.")]
+    public float insideCornerRotationOffset = 0f;
+    [Tooltip("Extra rotation (multiple of 90) applied only to inside walls, in case their artwork's default orientation differs from outside walls. Try 0 or 90.")]
+    public float insideWallRotationOffset = 0f;
+
+    private HashSet<Vector2Int> floorOnlyCells = new HashSet<Vector2Int>();
 
     private int[,] fullMap;
     private int fullRows, fullCols;
@@ -100,6 +106,7 @@ public class LevelGenerator : MonoBehaviour
 
         BuildFullMap();
         PunchTunnelOpening();
+        FillReachableVoidsWithFloor();
         GenerateLevel();
         FitCamera();
     }
@@ -120,7 +127,7 @@ public class LevelGenerator : MonoBehaviour
         {
             if (fullMap[tunnelRow, c] != EMPTY) break;
             fullMap[tunnelRow, c] = PELLET;
-            tunnelCells.Add(new Vector2Int(tunnelRow, c));
+            floorOnlyCells.Add(new Vector2Int(tunnelRow, c));
         }
 
         // Same from the right edge inward.
@@ -128,14 +135,65 @@ public class LevelGenerator : MonoBehaviour
         {
             if (fullMap[tunnelRow, c] != EMPTY) break;
             fullMap[tunnelRow, c] = PELLET;
-            tunnelCells.Add(new Vector2Int(tunnelRow, c));
+            floorOnlyCells.Add(new Vector2Int(tunnelRow, c));
+        }
+    }
+
+    /// <summary>
+    /// Some '0' cells are genuinely sealed obstacle interiors (correctly
+    /// black/void). Others are just corridor space that happens to be marked
+    /// 0 in the array and should actually show floor. This flood-fills
+    /// outward from every real floor cell (including the tunnel cells just
+    /// punched above), through chains of adjacent '0' cells: anything reached
+    /// this way is floor; anything never reached stays a true sealed void.
+    /// </summary>
+    private void FillReachableVoidsWithFloor()
+    {
+        bool[,] visited = new bool[fullRows, fullCols];
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+
+        for (int r = 0; r < fullRows; r++)
+        {
+            for (int c = 0; c < fullCols; c++)
+            {
+                if (fullMap[r, c] == PELLET || fullMap[r, c] == POWER_PELLET)
+                {
+                    visited[r, c] = true;
+                    queue.Enqueue(new Vector2Int(r, c));
+                }
+            }
+        }
+
+        int[] dr = { -1, 1, 0, 0 };
+        int[] dc = { 0, 0, -1, 1 };
+
+        while (queue.Count > 0)
+        {
+            Vector2Int cur = queue.Dequeue();
+            for (int d = 0; d < 4; d++)
+            {
+                int nr = cur.x + dr[d];
+                int nc = cur.y + dc[d];
+                if (nr < 0 || nr >= fullRows || nc < 0 || nc >= fullCols) continue;
+                if (visited[nr, nc]) continue;
+                if (fullMap[nr, nc] != EMPTY) continue; // walls block; only cross EMPTY cells
+
+                visited[nr, nc] = true;
+                queue.Enqueue(new Vector2Int(nr, nc));
+
+                fullMap[nr, nc] = PELLET;
+                floorOnlyCells.Add(new Vector2Int(nr, nc));
+            }
         }
     }
 
     /// <summary>
     /// Expands the single quadrant into the full level by mirroring it
     /// horizontally and vertically. The last row and last column of the
-    /// source quadrant are treated as the shared seam and are NOT duplicated.
+    /// source quadrant's last ROW is treated as a shared seam and is NOT
+    /// duplicated (avoids a doubled middle floor row). The last COLUMN,
+    /// however, mirrors in full - there is no shared seam column, so the
+    /// full width is a true doubling (14 columns -> 28, not 27).
     /// </summary>
     private void BuildFullMap()
     {
@@ -143,7 +201,7 @@ public class LevelGenerator : MonoBehaviour
         int qCols = levelMap.GetLength(1);
 
         fullRows = qRows * 2 - 1;
-        fullCols = qCols * 2 - 1;
+        fullCols = qCols * 2;
         fullMap = new int[fullRows, fullCols];
 
         for (int r = 0; r < fullRows; r++)
@@ -200,16 +258,16 @@ public class LevelGenerator : MonoBehaviour
                         break;
                     case INSIDE_CORNER:
                         prefab = insideCornerPrefab;
-                        rotationZ = GetCornerRotation(r, c);
+                        rotationZ = GetCornerRotation(r, c) + insideCornerRotationOffset;
                         break;
                     case INSIDE_WALL:
                         prefab = insideWallPrefab;
-                        rotationZ = GetStraightWallRotation(r, c);
+                        rotationZ = GetStraightWallRotation(r, c) + insideWallRotationOffset;
                         break;
                     case PELLET:
-                        if (tunnelCells.Contains(new Vector2Int(r, c)))
+                        if (floorOnlyCells.Contains(new Vector2Int(r, c)))
                         {
-                            // Tunnel opening: floor only (already spawned above), no pellet.
+                            // Tunnel or reachable-void cell: floor only, no pellet.
                             continue;
                         }
                         prefab = pelletPrefab;
@@ -344,26 +402,27 @@ public class LevelGenerator : MonoBehaviour
         bool right = IsWall(r, c + 1);
 
         // Prefer an exact match first (all 3 expected sides present).
-        if (!up && left && right && down) return 0f;
-        if (!left && up && down && right) return 90f;
-        if (!down && left && right && up) return 180f;
-        if (!right && up && down && left) return 270f;
+        // NOTE: offset 180 degrees from "textbook" to match this project's artwork.
+        if (!up && left && right && down) return 180f;
+        if (!left && up && down && right) return 270f;
+        if (!down && left && right && up) return 0f;
+        if (!right && up && down && left) return 90f;
 
         // Fallback: score each rotation by how many of its 3 expected sides
         // are actually present, and pick the best fit instead of defaulting.
-        int score0 = (left ? 1 : 0) + (right ? 1 : 0) + (down ? 1 : 0);
-        int score90 = (up ? 1 : 0) + (down ? 1 : 0) + (right ? 1 : 0);
-        int score180 = (left ? 1 : 0) + (right ? 1 : 0) + (up ? 1 : 0);
-        int score270 = (up ? 1 : 0) + (down ? 1 : 0) + (left ? 1 : 0);
+        int score180 = (left ? 1 : 0) + (right ? 1 : 0) + (down ? 1 : 0);
+        int score270 = (up ? 1 : 0) + (down ? 1 : 0) + (right ? 1 : 0);
+        int score0 = (left ? 1 : 0) + (right ? 1 : 0) + (up ? 1 : 0);
+        int score90 = (up ? 1 : 0) + (down ? 1 : 0) + (left ? 1 : 0);
 
         int best = Mathf.Max(Mathf.Max(score0, score90), Mathf.Max(score180, score270));
 
         if (best > 0)
         {
-            if (score0 == best) return 0f;
-            if (score90 == best) return 90f;
             if (score180 == best) return 180f;
-            return 270f;
+            if (score270 == best) return 270f;
+            if (score0 == best) return 0f;
+            return 90f;
         }
 
         Debug.LogWarning($"T-junction at ({r},{c}) has no adjacent walls at all " +
