@@ -1,22 +1,17 @@
 using UnityEngine;
 
-
 public class PacStudentMovement : MonoBehaviour
 {
     [Header("Path")]
-    [Tooltip("Exactly 4 waypoints, placed in CLOCKWISE order, forming the loop around the top-left inner block.")]
     public Transform[] waypoints;
 
     [Header("Movement")]
-    [Tooltip("Units per second. Must be the same for every segment of the trip.")]
     public float speed = 3f;
 
     [Header("References")]
     public Animator animator;
     public AudioSource moveAudioSource;
 
-    // EXACT names of the states in your PacStudent Animator Controller.
-    // Change these strings if your states are named differently.
     private const string STATE_UP = "Cat_up";
     private const string STATE_DOWN = "Cat_Down";
     private const string STATE_LEFT = "Cat_Left";
@@ -49,13 +44,9 @@ public class PacStudentMovement : MonoBehaviour
 
     private void Update()
     {
-        // Frame-rate independent: accumulate progress based on real elapsed time,
-        // not a fixed per-frame step.
         segmentTimer += Time.deltaTime;
         float t = Mathf.Clamp01(segmentTimer / segmentDuration);
 
-        // Manual linear interpolation (programmatic tweening) - constant speed
-        // across the whole segment, same speed used for every segment.
         transform.position = Vector3.Lerp(segmentStart, segmentEnd, t);
 
         if (t >= 1f)
@@ -75,7 +66,6 @@ public class PacStudentMovement : MonoBehaviour
         segmentDuration = distance / speed;
         segmentTimer = 0f;
 
-        // Instant turn: immediately switch animation state, no blending.
         Vector3 direction = (segmentEnd - segmentStart).normalized;
         PlayDirectionAnimation(direction);
     }
@@ -84,7 +74,6 @@ public class PacStudentMovement : MonoBehaviour
     {
         if (animator == null) return;
 
-        // Determine dominant axis of movement for this segment.
         if (Mathf.Abs(direction.x) > Mathf.Abs(direction.y))
         {
             animator.Play(direction.x > 0 ? STATE_RIGHT : STATE_LEFT);
