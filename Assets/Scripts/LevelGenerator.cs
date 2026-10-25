@@ -66,6 +66,7 @@ public class LevelGenerator : MonoBehaviour
     };
 
     private HashSet<Vector2Int> floorOnlyCells = new HashSet<Vector2Int>();
+    private HashSet<Vector2Int> ghostRoomCells = new HashSet<Vector2Int>();
     private int[,] fullMap;
     private int fullRows, fullCols;
     private Transform levelParent;
@@ -85,6 +86,7 @@ public class LevelGenerator : MonoBehaviour
         BuildFullMap();
         PunchTunnelOpening();
         FillReachableVoidsWithFloor();
+        FillGhostRoomWithFloor();   // must run after FillReachableVoidsWithFloor
         GenerateLevel();
         FitCamera();
     }
@@ -152,6 +154,59 @@ public class LevelGenerator : MonoBehaviour
                 floorOnlyCells.Add(new Vector2Int(nr, nc));
             }
         }
+    }
+
+    // The ghost room interior is sealed by walls + the ghost door, so the normal
+    // flood fill never reaches it. Seed from empty cells touching a ghost door
+    // (run AFTER FillReachableVoidsWithFloor so the outside is already filled).
+    private void FillGhostRoomWithFloor()
+    {
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        int[] dr = { -1, 1, 0, 0 };
+        int[] dc = { 0, 0, -1, 1 };
+
+        // Seed: empty cells directly next to a ghost door
+        for (int r = 0; r < fullRows; r++)
+        {
+            for (int c = 0; c < fullCols; c++)
+            {
+                if (fullMap[r, c] != GHOST_DOOR) continue;
+
+                for (int d = 0; d < 4; d++)
+                {
+                    int nr = r + dr[d];
+                    int nc = c + dc[d];
+                    if (nr < 0 || nr >= fullRows || nc < 0 || nc >= fullCols) continue;
+                    if (fullMap[nr, nc] != EMPTY) continue;
+
+                    MarkGhostRoomCell(nr, nc);
+                    queue.Enqueue(new Vector2Int(nr, nc));
+                }
+            }
+        }
+
+        // Spread through the rest of the interior
+        while (queue.Count > 0)
+        {
+            Vector2Int cur = queue.Dequeue();
+            for (int d = 0; d < 4; d++)
+            {
+                int nr = cur.x + dr[d];
+                int nc = cur.y + dc[d];
+                if (nr < 0 || nr >= fullRows || nc < 0 || nc >= fullCols) continue;
+                if (fullMap[nr, nc] != EMPTY) continue;
+
+                MarkGhostRoomCell(nr, nc);
+                queue.Enqueue(new Vector2Int(nr, nc));
+            }
+        }
+    }
+
+    private void MarkGhostRoomCell(int r, int c)
+    {
+        fullMap[r, c] = PELLET;                       // floor tile, but no pellet spawned
+        floorOnlyCells.Add(new Vector2Int(r, c));
+        ghostRoomCells.Add(new Vector2Int(r, c));
     }
 
     // Mirrors the quadrant into the full level. Rows share a middle seam
