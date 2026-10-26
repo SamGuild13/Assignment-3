@@ -71,6 +71,11 @@ public class LevelGenerator : MonoBehaviour
     private int fullRows, fullCols;
     private Transform levelParent;
 
+    // ---- Grid API used by PacStudentController (and later scripts) ----
+    // Cells are Vector2Int(row, col): x = row, y = column.
+    public bool IsReady { get; private set; }
+    public Vector2Int PlayerStartCell => new Vector2Int(1, 1);   // top-left corner pellet
+
     void Start()
     {
         if (manualLevelRoot != null)
@@ -89,6 +94,22 @@ public class LevelGenerator : MonoBehaviour
         FillGhostRoomWithFloor();   // must run after FillReachableVoidsWithFloor
         GenerateLevel();
         FitCamera();
+        IsReady = true;
+    }
+
+    public Vector3 CellToWorld(Vector2Int cell)
+    {
+        return GridToWorld(cell.x, cell.y);
+    }
+
+    // True if PacStudent is allowed to stand on this cell.
+    public bool IsWalkable(Vector2Int cell)
+    {
+        if (cell.x < 0 || cell.x >= fullRows || cell.y < 0 || cell.y >= fullCols) return false;
+        if (ghostRoomCells.Contains(cell)) return false;   // PacStudent can't enter the ghost room
+
+        int v = fullMap[cell.x, cell.y];
+        return v == PELLET || v == POWER_PELLET;
     }
 
     // levelMap has no tunnel gap encoded in it - this cuts one manually at
