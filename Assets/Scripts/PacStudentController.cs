@@ -8,6 +8,7 @@ public class PacStudentController : MonoBehaviour
     [SerializeField] private LevelGenerator level;
     [SerializeField] private Animator animator;
     [SerializeField] private AudioSource moveAudio;
+    [SerializeField] private ParticleSystem dust;
 
     [Header("Movement")]
     [SerializeField] private float tilesPerSecond = 5f;
@@ -48,6 +49,7 @@ public class PacStudentController : MonoBehaviour
 
         if (animator == null) animator = GetComponent<Animator>();
         if (moveAudio == null) moveAudio = GetComponent<AudioSource>();
+        if (dust == null) dust = GetComponentInChildren<ParticleSystem>();
 
         if (moveAudio != null)
         {
@@ -56,6 +58,7 @@ public class PacStudentController : MonoBehaviour
         }
 
         if (animator != null) animator.speed = 0f;
+        if (dust != null) dust.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
     }
 
     void Update()
@@ -198,6 +201,19 @@ public class PacStudentController : MonoBehaviour
         if (!moving && moveAudio != null && moveAudio.isPlaying)
         {
             moveAudio.Stop();
+        }
+
+        if (dust != null)
+        {
+            if (moving && !dust.isEmitting)
+            {
+                dust.Play();
+            }
+            else if (!moving && dust.isEmitting)
+            {
+                // Stop making new dust but let the existing specks fade out.
+                dust.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            }
         }
     }
 
