@@ -24863,7 +24863,7 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 0}
-  m_Resource: {fileID: 8300000, guid: 6807c275c44e54240b66d290df49b58a, type: 3}
+  m_Resource: {fileID: 0}
   m_PlayOnAwake: 0
   m_Volume: 0.521
   m_Pitch: 1
@@ -24962,7 +24962,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PacStudentController
   level: {fileID: 61755028}
+  animator: {fileID: 0}
+  moveAudio: {fileID: 0}
   tilesPerSecond: 5
+  walkingClip: {fileID: 8300000, guid: 6807c275c44e54240b66d290df49b58a, type: 3}
+  eatingClip: {fileID: 8300000, guid: 7469ad1dd7fb557458affb0d41e824d8, type: 3}
+  upState: Cat_up
+  downState: Cat_Down
+  leftState: Cat_Left
+  rightState: Cat_Right
 --- !u!1 &371846802
 GameObject:
   m_ObjectHideFlags: 0
