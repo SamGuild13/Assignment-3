@@ -4,13 +4,29 @@ public class PacStudentController : MonoBehaviour
 {
     public enum Direction { None, Up, Left, Down, Right }
 
+    [Header("References")]
     [SerializeField] private LevelGenerator level;
+    [SerializeField] private Animator animator;
+    [SerializeField] private AudioSource moveAudio;
+
+    [Header("Movement")]
     [SerializeField] private float tilesPerSecond = 5f;
+
+    [Header("Movement Audio")]
+    [SerializeField] private AudioClip walkingClip;   // moving, no pellet in the next cell (loops)
+    [SerializeField] private AudioClip eatingClip;    // moving onto a pellet (restarts every cell)
+
+    [Header("Animator State Names (must match the Animator window exactly)")]
+    [SerializeField] private string upState = "Up";
+    [SerializeField] private string downState = "Down";
+    [SerializeField] private string leftState = "Left";
+    [SerializeField] private string rightState = "Right";
 
     // Required by the spec: names and behaviour matter.
     private Direction lastInput = Direction.None;     // last key the player pressed (never cleared by us)
     private Direction currentInput = Direction.None;  // last direction we actually moved in
 
+    private Direction facing = Direction.None;
     private Vector2Int currentCell;   // (row, col)
     private Vector2Int targetCell;
     private Vector3 startPos;
@@ -29,6 +45,17 @@ public class PacStudentController : MonoBehaviour
     void Awake()
     {
         duration = 1f / tilesPerSecond;
+
+        if (animator == null) animator = GetComponent<Animator>();
+        if (moveAudio == null) moveAudio = GetComponent<AudioSource>();
+
+        if (moveAudio != null)
+        {
+            moveAudio.playOnAwake = false;
+            moveAudio.Stop();
+        }
+
+        if (animator != null) animator.speed = 0f;
     }
 
     void Update()
@@ -41,7 +68,11 @@ public class PacStudentController : MonoBehaviour
             initialised = true;
         }
 
-        if (!InputEnabled) return;
+        if (!InputEnabled)
+        {
+            SetMovingEffects(false);
+            return;
+        }
 
         ReadInput();
 
@@ -71,6 +102,8 @@ public class PacStudentController : MonoBehaviour
         {
             TryStartMove();
         }
+
+        SetMovingEffects(isLerping);
     }
 
     public void ResetToStart()
@@ -83,6 +116,10 @@ public class PacStudentController : MonoBehaviour
         elapsed = 0f;
         lastInput = Direction.None;
         currentInput = Direction.None;
+        facing = Direction.None;
+
+        SetFacing(Direction.Right);   // spec: start facing right, waiting for input
+        SetMovingEffects(false);
     }
 
     private void ReadInput()
@@ -127,6 +164,66 @@ public class PacStudentController : MonoBehaviour
         targetPos = new Vector3(p.x, p.y, transform.position.z);
         elapsed = 0f;
         isLerping = true;
+
+        SetFacing(dir);
+        PlayMoveAudio(level.HasPickup(targetCell));
+    }
+
+    // Plays the matching directional animation state, keeping the walk-cycle
+    // position so turning doesn't make the animation jump back to frame 0.
+    private void SetFacing(Direction dir)
+    {
+        if (dir == facing || animator == null) return;
+        facing = dir;
+
+        float normalizedTime = animator.GetCurrentAnimatorStateInfo(0).normalizedTime % 1f;
+        animator.Play(StateNameFor(dir), 0, normalizedTime);
+    }
+
+    private string StateNameFor(Direction dir)
+    {
+        switch (dir)
+        {
+            case Direction.Up: return upState;
+            case Direction.Down: return downState;
+            case Direction.Left: return leftState;
+            default: return rightState;
+        }
+    }
+
+    private void SetMovingEffects(bool moving)
+    {
+        if (animator != null) animator.speed = moving ? 1f : 0f;
+
+        if (!moving && moveAudio != null && moveAudio.isPlaying)
+        {
+            moveAudio.Stop();
+        }
+    }
+
+    // Pellet ahead: restart the eating clip from the start (one sound per pellet).
+    // No pellet: loop the walking clip, only (re)starting it if it isn't already playing.
+    private void PlayMoveAudio(bool pelletAhead)
+    {
+        if (moveAudio == null) return;
+
+        if (pelletAhead)
+        {
+            if (eatingClip == null) return;
+            moveAudio.loop = false;
+            moveAudio.clip = eatingClip;
+            moveAudio.Play();
+        }
+        else
+        {
+            if (walkingClip == null) return;
+            if (moveAudio.clip != walkingClip || !moveAudio.isPlaying)
+            {
+                moveAudio.loop = true;
+                moveAudio.clip = walkingClip;
+                moveAudio.Play();
+            }
+        }
     }
 
     // (row, col): up is row - 1, right is col + 1

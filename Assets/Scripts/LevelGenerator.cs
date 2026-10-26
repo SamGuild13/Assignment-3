@@ -67,6 +67,7 @@ public class LevelGenerator : MonoBehaviour
 
     private HashSet<Vector2Int> floorOnlyCells = new HashSet<Vector2Int>();
     private HashSet<Vector2Int> ghostRoomCells = new HashSet<Vector2Int>();
+    private Dictionary<Vector2Int, GameObject> pickups = new Dictionary<Vector2Int, GameObject>();
     private int[,] fullMap;
     private int fullRows, fullCols;
     private Transform levelParent;
@@ -110,6 +111,12 @@ public class LevelGenerator : MonoBehaviour
 
         int v = fullMap[cell.x, cell.y];
         return v == PELLET || v == POWER_PELLET;
+    }
+
+    // True if a pellet or power pellet object still exists on this cell.
+    public bool HasPickup(Vector2Int cell)
+    {
+        return pickups.TryGetValue(cell, out GameObject go) && go != null;
     }
 
     // levelMap has no tunnel gap encoded in it - this cuts one manually at
@@ -324,6 +331,11 @@ public class LevelGenerator : MonoBehaviour
 
                 GameObject go = Instantiate(prefab, pos, Quaternion.Euler(0f, 0f, rotationZ), levelParent);
                 go.name = $"{prefab.name}_{r}_{c}";
+
+                if (value == PELLET || value == POWER_PELLET)
+                {
+                    pickups[new Vector2Int(r, c)] = go;
+                }
             }
         }
     }
