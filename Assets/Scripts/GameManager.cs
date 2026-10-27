@@ -1,6 +1,7 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
@@ -17,20 +18,32 @@ public class GameManager : MonoBehaviour
     [SerializeField] private TMP_Text scoreText;
     [SerializeField] private TMP_Text timerText;
     [SerializeField] private TMP_Text countdownText;
-    [SerializeField] private GameObject countdownBlocker;
-    [SerializeField] private Image[] lifeIcons;           // Life1, Life2, Life3
+    [SerializeField] private TMP_Text gameOverText;
+    [SerializeField] private GameObject countdownBlocker;  // also used as the Game Over blocker
+    [SerializeField] private Image[] lifeIcons;            // Life1, Life2, Life3
+    [SerializeField] private Button exitButton;
 
     [Header("Music")]
     [SerializeField] private AudioSource musicSource;
-    [SerializeField] private AudioClip introClip;         // plays during the countdown
-    [SerializeField] private AudioClip normalClip;        // loops once the game starts
+    [SerializeField] private AudioClip introClip;          // plays during the countdown
+    [SerializeField] private AudioClip normalClip;         // loops once the game starts
 
     [Header("Settings")]
     [SerializeField] private int startingLives = 3;
+    [SerializeField] private string levelKey = "Level1";   // PlayerPrefs key prefix (Level2 for the HD scene)
+    [SerializeField] private string startSceneName = "StartScene";
+    [SerializeField] private float gameOverDuration = 3f;
+
+    [Header("Debug (leave off / 0 when submitting)")]
+    [SerializeField] private bool debugKeys = false;       // G = trigger Game Over
+    [SerializeField] private int debugPelletsToWin = 0;    // >0 = pretend only this many pellets exist
 
     public int Score { get; private set; }
     public int Lives { get; private set; }
     public float ElapsedTime { get; private set; }
+
+    private int pelletsRemaining;
+    private bool pelletsCounted;
 
     void Awake()
     {
@@ -43,6 +56,7 @@ public class GameManager : MonoBehaviour
         if (pacStudent != null) pacStudent.InputEnabled = false;
 
         if (countdownText != null) countdownText.gameObject.SetActive(false);
+        if (gameOverText != null) gameOverText.gameObject.SetActive(false);
         if (countdownBlocker != null) countdownBlocker.SetActive(false);
 
         if (musicSource != null)
@@ -50,6 +64,16 @@ public class GameManager : MonoBehaviour
             musicSource.playOnAwake = false;
             musicSource.Stop();
         }
+    }
+
+    void OnEnable()
+    {
+        Pickup.Eaten += OnPickupEaten;
+    }
+
+    void OnDisable()
+    {
+        Pickup.Eaten -= OnPickupEaten;
     }
 
     void Start()
@@ -67,6 +91,8 @@ public class GameManager : MonoBehaviour
         {
             ElapsedTime += Time.deltaTime;
             UpdateTimerUI();
+
+            if (debugKeys && Input.GetKeyDown(KeyCode.G)) TriggerGameOver();
         }
     }
 
@@ -90,10 +116,65 @@ public class GameManager : MonoBehaviour
         countdownText.gameObject.SetActive(false);
         countdownBlocker.SetActive(false);
 
+        CountPellets();
         PlayNormalMusic();
 
         State = GameState.Playing;
         if (pacStudent != null) pacStudent.InputEnabled = true;
+    }
+
+    // ---- Pellet counting (Game Over when every pellet has been eaten) ----
+
+    private void CountPellets()
+    {
+        pelletsRemaining = 0;
+        Pickup[] all = FindObjectsByType<Pickup>(FindObjectsSortMode.None);
+        foreach (Pickup p in all)
+        {
+            if (p.type == Pickup.PickupType.Pellet) pelletsRemaining++;
+        }
+
+        if (debugPelletsToWin > 0) pelletsRemaining = debugPelletsToWin;
+        pelletsCounted = pelletsRemaining > 0;
+    }
+
+    private void OnPickupEaten(Pickup pickup)
+    {
+        if (State != GameState.Playing || !pelletsCounted) return;
+        if (pickup.type != Pickup.PickupType.Pellet) return;
+
+        pelletsRemaining--;
+        if (pelletsRemaining <= 0) TriggerGameOver();
+    }
+
+    // ---- Game Over ----
+
+    // Every pellet eaten, or PacStudent has no lives left.
+    public void TriggerGameOver()
+    {
+        if (State == GameState.GameOver) return;
+        State = GameState.GameOver;   // the timer stops here, because it only runs while Playing
+
+        // Stop all player and ghost movement.
+        if (pacStudent != null) pacStudent.InputEnabled = false;
+        if (GhostManager.Instance != null) GhostManager.Instance.SetFrozen(true);
+
+        // No UI buttons while Game Over is showing.
+        if (exitButton != null) exitButton.interactable = false;
+
+        countdownBlocker.SetActive(true);
+        gameOverText.gameObject.SetActive(true);
+
+        // Save only if this beats the previous best.
+        HighScoreData.TrySave(levelKey, Score, ElapsedTime);
+
+        StartCoroutine(ReturnToStartRoutine());
+    }
+
+    private IEnumerator ReturnToStartRoutine()
+    {
+        yield return new WaitForSeconds(gameOverDuration);
+        SceneManager.LoadScene(startSceneName);
     }
 
     // ---- Used by other scripts ----
@@ -108,14 +189,6 @@ public class GameManager : MonoBehaviour
     {
         Lives = Mathf.Max(0, lives);
         UpdateLivesUI();
-    }
-
-    // Called when PacStudent has no lives left (the Game Over screen is added in part 5).
-    public void TriggerGameOver()
-    {
-        if (State == GameState.GameOver) return;
-        State = GameState.GameOver;
-        if (pacStudent != null) pacStudent.InputEnabled = false;
     }
 
     public void PlayNormalMusic()
@@ -151,16 +224,8 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // mm:ss:cc where cc is hundredths of a second (01:32:25 = 1 min, 32 s, 250 ms)
     private void UpdateTimerUI()
     {
-        if (timerText == null) return;
-
-        int totalHundredths = Mathf.FloorToInt(ElapsedTime * 100f);
-        int hundredths = totalHundredths % 100;
-        int seconds = (totalHundredths / 100) % 60;
-        int minutes = totalHundredths / 6000;
-
-        timerText.text = $"{minutes:00}:{seconds:00}:{hundredths:00}";
+        if (timerText != null) timerText.text = HighScoreData.FormatTime(ElapsedTime);
     }
 }
