@@ -90,13 +90,13 @@ public class GameManager : MonoBehaviour
         countdownText.gameObject.SetActive(false);
         countdownBlocker.SetActive(false);
 
-        PlayMusic(normalClip, true);
+        PlayNormalMusic();
 
         State = GameState.Playing;
         if (pacStudent != null) pacStudent.InputEnabled = true;
     }
 
-    // ---- Used by later parts ----
+    // ---- Used by other scripts ----
 
     public void AddScore(int points)
     {
@@ -110,9 +110,18 @@ public class GameManager : MonoBehaviour
         UpdateLivesUI();
     }
 
+    public void PlayNormalMusic()
+    {
+        PlayMusic(normalClip, true);
+    }
+
     public void PlayMusic(AudioClip clip, bool loop)
     {
         if (musicSource == null || clip == null) return;
+
+        // Already playing this track: don't restart it.
+        if (musicSource.isPlaying && musicSource.clip == clip) return;
+
         musicSource.Stop();
         musicSource.clip = clip;
         musicSource.loop = loop;

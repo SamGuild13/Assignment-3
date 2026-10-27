@@ -19,12 +19,17 @@ public class PacStudentController : MonoBehaviour
     [SerializeField] private AudioClip walkingClip;   // moving, no pellet in the next cell (loops)
     [SerializeField] private AudioClip eatingClip;    // moving onto a pellet (restarts every cell)
 
-    [Header("Wall Bump")]
+    [Header("Sound Effects")]
     [SerializeField] private AudioClip wallBumpClip;  // your "Collision" clip
+    [SerializeField] private AudioClip cherryClip;    // leave empty until you have a cherry sound
+
+    [Header("Wall Bump")]
     [SerializeField] private int bumpParticleCount = 10;
 
     [Header("Scoring")]
     [SerializeField] private int pelletPoints = 10;
+    [SerializeField] private int powerPelletPoints = 50;
+    [SerializeField] private int cherryPoints = 100;
 
     [Header("Animator State Names (must match the Animator window exactly)")]
     [SerializeField] private string upState = "Up";
@@ -221,28 +226,54 @@ public class PacStudentController : MonoBehaviour
             wallBumpEffect.Emit(bumpParticleCount);
         }
 
-        if (sfxAudio != null && wallBumpClip != null)
+        PlaySfx(wallBumpClip);
+    }
+
+    // Pickups and ghosts are trigger colliders (PacStudent has a kinematic Rigidbody2D).
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        // Nothing registers during the countdown or after the game is over.
+        if (GameManager.Instance != null && GameManager.Instance.State != GameManager.GameState.Playing) return;
+
+        Pickup pickup = other.GetComponent<Pickup>();
+        if (pickup != null)
         {
-            sfxAudio.PlayOneShot(wallBumpClip);
+            switch (pickup.type)
+            {
+                case Pickup.PickupType.Pellet:
+                    AddScore(pelletPoints);
+                    break;
+
+                case Pickup.PickupType.PowerPellet:
+                    AddScore(powerPelletPoints);
+                    if (GhostManager.Instance != null) GhostManager.Instance.StartScared();
+                    break;
+
+                case Pickup.PickupType.Cherry:
+                    AddScore(cherryPoints);
+                    PlaySfx(cherryClip);
+                    break;
+            }
+
+            Destroy(other.gameObject);
+            return;
+        }
+
+        GhostController ghost = other.GetComponent<GhostController>();
+        if (ghost != null && GhostManager.Instance != null)
+        {
+            GhostManager.Instance.OnGhostTouched(ghost);
         }
     }
 
-    // Pickups are trigger colliders (PacStudent has a kinematic Rigidbody2D).
-    private void OnTriggerEnter2D(Collider2D other)
+    private void AddScore(int points)
     {
-        Pickup pickup = other.GetComponent<Pickup>();
-        if (pickup == null) return;
+        if (GameManager.Instance != null) GameManager.Instance.AddScore(points);
+    }
 
-        switch (pickup.type)
-        {
-            case Pickup.PickupType.Pellet:
-                if (GameManager.Instance != null) GameManager.Instance.AddScore(pelletPoints);
-                Destroy(other.gameObject);
-                break;
-
-            default:
-                break;   // power pellets and the cherry are added in the next part
-        }
+    private void PlaySfx(AudioClip clip)
+    {
+        if (sfxAudio != null && clip != null) sfxAudio.PlayOneShot(clip);
     }
 
     // Plays the matching directional animation state, keeping the walk-cycle
