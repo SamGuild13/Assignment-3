@@ -8,7 +8,9 @@ public class PacStudentController : MonoBehaviour
     [SerializeField] private LevelGenerator level;
     [SerializeField] private Animator animator;
     [SerializeField] private AudioSource moveAudio;
+    [SerializeField] private AudioSource sfxAudio;           // the SFXSource child
     [SerializeField] private ParticleSystem dust;
+    [SerializeField] private ParticleSystem wallBumpEffect;
 
     [Header("Movement")]
     [SerializeField] private float tilesPerSecond = 5f;
@@ -16,6 +18,13 @@ public class PacStudentController : MonoBehaviour
     [Header("Movement Audio")]
     [SerializeField] private AudioClip walkingClip;   // moving, no pellet in the next cell (loops)
     [SerializeField] private AudioClip eatingClip;    // moving onto a pellet (restarts every cell)
+
+    [Header("Wall Bump")]
+    [SerializeField] private AudioClip wallBumpClip;  // your "Collision" clip
+    [SerializeField] private int bumpParticleCount = 10;
+
+    [Header("Scoring")]
+    [SerializeField] private int pelletPoints = 10;
 
     [Header("Animator State Names (must match the Animator window exactly)")]
     [SerializeField] private string upState = "Up";
@@ -36,6 +45,7 @@ public class PacStudentController : MonoBehaviour
     private float duration;
     private bool isLerping;
     private bool initialised;
+    private bool hasBumped;           // so the bump only happens on the first frame
 
     // Used later by round start / game over / death.
     public bool InputEnabled { get; set; } = true;
@@ -92,12 +102,18 @@ public class PacStudentController : MonoBehaviour
                 currentCell = targetCell;
                 isLerping = false;
 
-                // Reached a grid position: decide the next move straight away.
+                // Reached a grid position: tunnel ends teleport, then decide the next move.
+                TryTeleport();
+
                 if (TryStartMove())
                 {
                     elapsed = leftover;
                     float t2 = Mathf.Clamp01(elapsed / duration);
                     transform.position = Vector3.Lerp(startPos, targetPos, t2);
+                }
+                else
+                {
+                    HandleWallBump();
                 }
             }
         }
@@ -120,6 +136,7 @@ public class PacStudentController : MonoBehaviour
         lastInput = Direction.None;
         currentInput = Direction.None;
         facing = Direction.None;
+        hasBumped = false;
 
         SetFacing(Direction.Right);   // spec: start facing right, waiting for input
         SetMovingEffects(false);
@@ -167,9 +184,65 @@ public class PacStudentController : MonoBehaviour
         targetPos = new Vector3(p.x, p.y, transform.position.z);
         elapsed = 0f;
         isLerping = true;
+        hasBumped = false;
 
         SetFacing(dir);
         PlayMoveAudio(level.HasPickup(targetCell));
+    }
+
+    // Tunnel ends: arriving heading outwards moves PacStudent to the other side,
+    // and the same direction carries on, which is inwards from that end.
+    private void TryTeleport()
+    {
+        int colDirection = ToOffset(currentInput).y;
+        if (colDirection == 0) return;
+
+        if (level.TryGetTeleport(currentCell, colDirection, out Vector2Int destination))
+        {
+            currentCell = destination;
+            Vector3 p = level.CellToWorld(currentCell);
+            transform.position = new Vector3(p.x, p.y, transform.position.z);
+        }
+    }
+
+    // First frame of hitting a wall: particle burst at the contact point + sound.
+    private void HandleWallBump()
+    {
+        if (hasBumped || currentInput == Direction.None) return;
+        hasBumped = true;
+
+        if (wallBumpEffect != null)
+        {
+            Vector2Int off = ToOffset(currentInput);
+            Vector3 contact = level.CellToWorld(currentCell) +
+                              new Vector3(off.y, -off.x, 0f) * (level.cellSize * 0.5f);
+
+            wallBumpEffect.transform.position = new Vector3(contact.x, contact.y, wallBumpEffect.transform.position.z);
+            wallBumpEffect.Emit(bumpParticleCount);
+        }
+
+        if (sfxAudio != null && wallBumpClip != null)
+        {
+            sfxAudio.PlayOneShot(wallBumpClip);
+        }
+    }
+
+    // Pickups are trigger colliders (PacStudent has a kinematic Rigidbody2D).
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        Pickup pickup = other.GetComponent<Pickup>();
+        if (pickup == null) return;
+
+        switch (pickup.type)
+        {
+            case Pickup.PickupType.Pellet:
+                if (GameManager.Instance != null) GameManager.Instance.AddScore(pelletPoints);
+                Destroy(other.gameObject);
+                break;
+
+            default:
+                break;   // power pellets and the cherry are added in the next part
+        }
     }
 
     // Plays the matching directional animation state, keeping the walk-cycle
