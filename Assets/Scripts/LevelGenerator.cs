@@ -66,9 +66,18 @@ public class LevelGenerator : MonoBehaviour
     };
 
     private HashSet<Vector2Int> floorOnlyCells = new HashSet<Vector2Int>();
+    private HashSet<Vector2Int> ghostRoomCells = new HashSet<Vector2Int>();
+    private Dictionary<Vector2Int, GameObject> pickups = new Dictionary<Vector2Int, GameObject>();
     private int[,] fullMap;
     private int fullRows, fullCols;
     private Transform levelParent;
+
+    // ---- Grid API used by PacStudentController (and later scripts) ----
+    // Cells are Vector2Int(row, col): x = row, y = column.
+    public bool IsReady { get; private set; }
+    public Vector2Int PlayerStartCell => new Vector2Int(1, 1);   // top-left corner
+    public int FullRows => fullRows;
+    public int FullCols => fullCols;
 
     void Start()
     {
@@ -85,8 +94,53 @@ public class LevelGenerator : MonoBehaviour
         BuildFullMap();
         PunchTunnelOpening();
         FillReachableVoidsWithFloor();
+        FillGhostRoomWithFloor();   // must run after FillReachableVoidsWithFloor
         GenerateLevel();
         FitCamera();
+        IsReady = true;
+    }
+
+    public Vector3 CellToWorld(Vector2Int cell)
+    {
+        return GridToWorld(cell.x, cell.y);
+    }
+
+    // True if PacStudent is allowed to stand on this cell.
+    public bool IsWalkable(Vector2Int cell)
+    {
+        if (cell.x < 0 || cell.x >= fullRows || cell.y < 0 || cell.y >= fullCols) return false;
+        if (ghostRoomCells.Contains(cell)) return false;   // PacStudent can't enter the ghost room
+
+        int v = fullMap[cell.x, cell.y];
+        return v == PELLET || v == POWER_PELLET;
+    }
+
+    // True if a pellet or power pellet object still exists on this cell.
+    public bool HasPickup(Vector2Int cell)
+    {
+        return pickups.TryGetValue(cell, out GameObject go) && go != null;
+    }
+
+    // Teleporter: arriving at the end of the tunnel row while heading outwards
+    // sends you to the opposite end. colDirection: -1 = moving left, +1 = moving right.
+    public bool TryGetTeleport(Vector2Int cell, int colDirection, out Vector2Int destination)
+    {
+        destination = cell;
+        if (cell.x != tunnelRow) return false;
+
+        if (cell.y == 0 && colDirection < 0)
+        {
+            destination = new Vector2Int(tunnelRow, fullCols - 1);
+            return true;
+        }
+
+        if (cell.y == fullCols - 1 && colDirection > 0)
+        {
+            destination = new Vector2Int(tunnelRow, 0);
+            return true;
+        }
+
+        return false;
     }
 
     // levelMap has no tunnel gap encoded in it - this cuts one manually at
@@ -152,6 +206,59 @@ public class LevelGenerator : MonoBehaviour
                 floorOnlyCells.Add(new Vector2Int(nr, nc));
             }
         }
+    }
+
+    // The ghost room interior is sealed by walls + the ghost door, so the normal
+    // flood fill never reaches it. Seed from empty cells touching a ghost door
+    // (run AFTER FillReachableVoidsWithFloor so the outside is already filled).
+    private void FillGhostRoomWithFloor()
+    {
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        int[] dr = { -1, 1, 0, 0 };
+        int[] dc = { 0, 0, -1, 1 };
+
+        // Seed: empty cells directly next to a ghost door
+        for (int r = 0; r < fullRows; r++)
+        {
+            for (int c = 0; c < fullCols; c++)
+            {
+                if (fullMap[r, c] != GHOST_DOOR) continue;
+
+                for (int d = 0; d < 4; d++)
+                {
+                    int nr = r + dr[d];
+                    int nc = c + dc[d];
+                    if (nr < 0 || nr >= fullRows || nc < 0 || nc >= fullCols) continue;
+                    if (fullMap[nr, nc] != EMPTY) continue;
+
+                    MarkGhostRoomCell(nr, nc);
+                    queue.Enqueue(new Vector2Int(nr, nc));
+                }
+            }
+        }
+
+        // Spread through the rest of the interior
+        while (queue.Count > 0)
+        {
+            Vector2Int cur = queue.Dequeue();
+            for (int d = 0; d < 4; d++)
+            {
+                int nr = cur.x + dr[d];
+                int nc = cur.y + dc[d];
+                if (nr < 0 || nr >= fullRows || nc < 0 || nc >= fullCols) continue;
+                if (fullMap[nr, nc] != EMPTY) continue;
+
+                MarkGhostRoomCell(nr, nc);
+                queue.Enqueue(new Vector2Int(nr, nc));
+            }
+        }
+    }
+
+    private void MarkGhostRoomCell(int r, int c)
+    {
+        fullMap[r, c] = PELLET;                       // floor tile, but no pellet spawned
+        floorOnlyCells.Add(new Vector2Int(r, c));
+        ghostRoomCells.Add(new Vector2Int(r, c));
     }
 
     // Mirrors the quadrant into the full level. Rows share a middle seam
@@ -221,7 +328,9 @@ public class LevelGenerator : MonoBehaviour
                         rotationZ = GetStraightWallRotation(r, c) + insideWallRotationOffset;
                         break;
                     case PELLET:
-                        if (floorOnlyCells.Contains(new Vector2Int(r, c)))
+                        // No pellet on floor-only cells, or on PacStudent's start cell.
+                        if (floorOnlyCells.Contains(new Vector2Int(r, c)) ||
+                            (r == PlayerStartCell.x && c == PlayerStartCell.y))
                         {
                             continue;
                         }
@@ -248,6 +357,11 @@ public class LevelGenerator : MonoBehaviour
 
                 GameObject go = Instantiate(prefab, pos, Quaternion.Euler(0f, 0f, rotationZ), levelParent);
                 go.name = $"{prefab.name}_{r}_{c}";
+
+                if (value == PELLET || value == POWER_PELLET)
+                {
+                    pickups[new Vector2Int(r, c)] = go;
+                }
             }
         }
     }
