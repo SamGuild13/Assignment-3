@@ -488,6 +488,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::StartMenuController
   level1SceneName: SampleScene
+  level1ScoreText: {fileID: 1533069447}
+  level2ScoreText: {fileID: 1214940077}
 --- !u!4 &238828931
 Transform:
   m_ObjectHideFlags: 0

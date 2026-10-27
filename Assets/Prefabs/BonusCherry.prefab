@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 1425999220586919226}
   - component: {fileID: 4107344323386745121}
   - component: {fileID: 5184317045828891075}
+  - component: {fileID: 8718277094847334576}
   m_Layer: 0
   m_Name: BonusCherry
   m_TagString: Untagged
@@ -156,3 +157,16 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
+--- !u!114 &8718277094847334576
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5952495791809494235}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b5fca3b2817a284dbf719e56113e37a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Pickup
+  type: 2

@@ -75,7 +75,9 @@ public class LevelGenerator : MonoBehaviour
     // ---- Grid API used by PacStudentController (and later scripts) ----
     // Cells are Vector2Int(row, col): x = row, y = column.
     public bool IsReady { get; private set; }
-    public Vector2Int PlayerStartCell => new Vector2Int(1, 1);   // top-left corner pellet
+    public Vector2Int PlayerStartCell => new Vector2Int(1, 1);   // top-left corner
+    public int FullRows => fullRows;
+    public int FullCols => fullCols;
 
     void Start()
     {
@@ -117,6 +119,28 @@ public class LevelGenerator : MonoBehaviour
     public bool HasPickup(Vector2Int cell)
     {
         return pickups.TryGetValue(cell, out GameObject go) && go != null;
+    }
+
+    // Teleporter: arriving at the end of the tunnel row while heading outwards
+    // sends you to the opposite end. colDirection: -1 = moving left, +1 = moving right.
+    public bool TryGetTeleport(Vector2Int cell, int colDirection, out Vector2Int destination)
+    {
+        destination = cell;
+        if (cell.x != tunnelRow) return false;
+
+        if (cell.y == 0 && colDirection < 0)
+        {
+            destination = new Vector2Int(tunnelRow, fullCols - 1);
+            return true;
+        }
+
+        if (cell.y == fullCols - 1 && colDirection > 0)
+        {
+            destination = new Vector2Int(tunnelRow, 0);
+            return true;
+        }
+
+        return false;
     }
 
     // levelMap has no tunnel gap encoded in it - this cuts one manually at
@@ -304,7 +328,9 @@ public class LevelGenerator : MonoBehaviour
                         rotationZ = GetStraightWallRotation(r, c) + insideWallRotationOffset;
                         break;
                     case PELLET:
-                        if (floorOnlyCells.Contains(new Vector2Int(r, c)))
+                        // No pellet on floor-only cells, or on PacStudent's start cell.
+                        if (floorOnlyCells.Contains(new Vector2Int(r, c)) ||
+                            (r == PlayerStartCell.x && c == PlayerStartCell.y))
                         {
                             continue;
                         }
