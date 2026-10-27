@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 public class PacStudentController : MonoBehaviour
@@ -11,6 +12,7 @@ public class PacStudentController : MonoBehaviour
     [SerializeField] private AudioSource sfxAudio;           // the SFXSource child
     [SerializeField] private ParticleSystem dust;
     [SerializeField] private ParticleSystem wallBumpEffect;
+    [SerializeField] private ParticleSystem deathEffect;
 
     [Header("Movement")]
     [SerializeField] private float tilesPerSecond = 5f;
@@ -22,9 +24,16 @@ public class PacStudentController : MonoBehaviour
     [Header("Sound Effects")]
     [SerializeField] private AudioClip wallBumpClip;  // your "Collision" clip
     [SerializeField] private AudioClip cherryClip;    // leave empty until you have a cherry sound
+    [SerializeField] private AudioClip deathClip;     // your "Death" clip
 
     [Header("Wall Bump")]
     [SerializeField] private int bumpParticleCount = 10;
+
+    [Header("Death")]
+    [SerializeField] private string deathState = "Cat_Death";
+    [SerializeField] private int deathParticleCount = 25;
+    [SerializeField] private float deathDuration = 1.5f;       // last-resort fallback
+    [SerializeField] private float deathWaitOverride = 0f;     // 0 = use the animation length; otherwise seconds
 
     [Header("Scoring")]
     [SerializeField] private int pelletPoints = 10;
@@ -51,10 +60,12 @@ public class PacStudentController : MonoBehaviour
     private bool isLerping;
     private bool initialised;
     private bool hasBumped;           // so the bump only happens on the first frame
+    private bool isDying;
 
-    // Used later by round start / game over / death.
+    // Used by round start / game over / death.
     public bool InputEnabled { get; set; } = true;
     public bool IsLerping => isLerping;
+    public bool IsDying => isDying;
     public Vector2Int CurrentCell => currentCell;
     public Direction CurrentDirection => currentInput;
 
@@ -85,6 +96,9 @@ public class PacStudentController : MonoBehaviour
             ResetToStart();
             initialised = true;
         }
+
+        // The death sequence owns the animator and audio until it finishes.
+        if (isDying) return;
 
         if (!InputEnabled)
         {
@@ -145,6 +159,87 @@ public class PacStudentController : MonoBehaviour
 
         SetFacing(Direction.Right);   // spec: start facing right, waiting for input
         SetMovingEffects(false);
+    }
+
+    // Called by GhostManager when PacStudent touches a Normal-state ghost.
+    public void Die()
+    {
+        if (isDying) return;
+        if (GameManager.Instance == null || GameManager.Instance.State != GameManager.GameState.Playing) return;
+
+        StartCoroutine(DeathRoutine());
+    }
+
+    private IEnumerator DeathRoutine()
+    {
+        isDying = true;
+
+        // Stop moving, stop the footsteps and dust, freeze the ghosts.
+        isLerping = false;
+        SetMovingEffects(false);
+        if (GhostManager.Instance != null) GhostManager.Instance.SetFrozen(true);
+
+        // Lose a life and update the HUD.
+        GameManager.Instance.SetLives(GameManager.Instance.Lives - 1);
+
+        // Death animation, particles and sound all start together.
+        if (animator != null)
+        {
+            int hash = Animator.StringToHash(deathState);
+            if (animator.HasState(0, hash))
+            {
+                animator.speed = 1f;
+                animator.Play(hash, 0, 0f);
+            }
+            else
+            {
+                Debug.LogWarning($"PacStudent: animator has no state called '{deathState}'.", this);
+            }
+        }
+
+        if (deathEffect != null)
+        {
+            deathEffect.transform.position = new Vector3(transform.position.x, transform.position.y, deathEffect.transform.position.z);
+            deathEffect.Emit(deathParticleCount);
+        }
+
+        PlaySfx(deathClip);
+
+        yield return new WaitForSeconds(GetDeathWait());
+
+        // No lives left: hand over to Game Over (screen added in part 5).
+        if (GameManager.Instance.Lives <= 0)
+        {
+            GameManager.Instance.TriggerGameOver();
+            yield break;
+        }
+
+        // Respawn top-left, ghosts back to their start in the Normal state, wait for new input.
+        ResetToStart();
+        if (GhostManager.Instance != null)
+        {
+            GhostManager.Instance.ResetAllGhosts();
+            GhostManager.Instance.SetFrozen(false);
+        }
+
+        isDying = false;
+    }
+
+    // How long the death sequence lasts: manual override, else the animation's own length,
+    // else the sound's length, else a fixed fallback.
+    private float GetDeathWait()
+    {
+        if (deathWaitOverride > 0f) return deathWaitOverride;
+
+        if (animator != null && animator.runtimeAnimatorController != null)
+        {
+            foreach (AnimationClip clip in animator.runtimeAnimatorController.animationClips)
+            {
+                if (clip.name == deathState) return clip.length;
+            }
+        }
+
+        return deathClip != null ? deathClip.length : deathDuration;
     }
 
     private void ReadInput()
@@ -232,7 +327,8 @@ public class PacStudentController : MonoBehaviour
     // Pickups and ghosts are trigger colliders (PacStudent has a kinematic Rigidbody2D).
     private void OnTriggerEnter2D(Collider2D other)
     {
-        // Nothing registers during the countdown or after the game is over.
+        // Nothing registers during the countdown, the death sequence or after the game is over.
+        if (isDying) return;
         if (GameManager.Instance != null && GameManager.Instance.State != GameManager.GameState.Playing) return;
 
         Pickup pickup = other.GetComponent<Pickup>();

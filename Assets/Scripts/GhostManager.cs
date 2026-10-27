@@ -7,6 +7,7 @@ public class GhostManager : MonoBehaviour
     public static GhostManager Instance { get; private set; }
 
     [Header("References")]
+    [SerializeField] private PacStudentController pacStudent;
     [SerializeField] private GhostController[] ghosts;
     [SerializeField] private TMP_Text ghostTimerText;
 
@@ -30,6 +31,9 @@ public class GhostManager : MonoBehaviour
     private GhostController.GhostState globalState = GhostController.GhostState.Normal;
     private float scaredTimer;
 
+    // True during the PacStudent death sequence. Ghost movement (85% band) checks this.
+    public bool Frozen { get; private set; }
+
     void Awake()
     {
         Instance = this;
@@ -42,6 +46,7 @@ public class GhostManager : MonoBehaviour
     void Update()
     {
         if (GameManager.Instance == null || GameManager.Instance.State != GameManager.GameState.Playing) return;
+        if (Frozen) return;
 
         if (debugKeys)
         {
@@ -114,11 +119,32 @@ public class GhostManager : MonoBehaviour
                 break;
 
             case GhostController.GhostState.Normal:
-                // PacStudent dies - added in the next part.
+                if (pacStudent != null) pacStudent.Die();
                 break;
 
                 // Dead ghosts ignore PacStudent.
         }
+    }
+
+    public void SetFrozen(bool frozen)
+    {
+        Frozen = frozen;
+    }
+
+    // After PacStudent dies: every ghost back to its start position in the Normal state.
+    public void ResetAllGhosts()
+    {
+        globalState = GhostController.GhostState.Normal;
+        scaredTimer = 0f;
+
+        if (ghostTimerText != null) ghostTimerText.gameObject.SetActive(false);
+
+        foreach (GhostController ghost in ghosts)
+        {
+            ghost.ResetToStart();
+        }
+
+        UpdateMusic();
     }
 
     private void EatGhost(GhostController ghost)

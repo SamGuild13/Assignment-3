@@ -110,6 +110,14 @@ public class GameManager : MonoBehaviour
         UpdateLivesUI();
     }
 
+    // Called when PacStudent has no lives left (the Game Over screen is added in part 5).
+    public void TriggerGameOver()
+    {
+        if (State == GameState.GameOver) return;
+        State = GameState.GameOver;
+        if (pacStudent != null) pacStudent.InputEnabled = false;
+    }
+
     public void PlayNormalMusic()
     {
         PlayMusic(normalClip, true);
