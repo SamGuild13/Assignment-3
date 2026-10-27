@@ -19266,10 +19266,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 2135777836}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 100, y: 100}
+  m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &295945598
 MonoBehaviour:
@@ -140899,8 +140899,8 @@ MonoBehaviour:
   levelKey: Level1
   startSceneName: StartScene
   gameOverDuration: 3
-  debugKeys: 1
-  debugPelletsToWin: 5
+  debugKeys: 0
+  debugPelletsToWin: 0
 --- !u!4 &2037989694
 Transform:
   m_ObjectHideFlags: 0
